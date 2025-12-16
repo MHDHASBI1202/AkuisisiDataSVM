@@ -9,7 +9,9 @@ from sklearn.pipeline import Pipeline
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
-import joblib 
+import joblib
+import base64
+from pathlib import Path
 
 # --------------------------
 # 1. GLOBAL STYLING & CONFIG
@@ -25,9 +27,70 @@ st.set_page_config(
 # Constants
 GREEN_COLOR = "#28A745"
 DARK_GREEN = "#1E7E34"
+GRAY_LIGHT = "#f8f9fa"
+
+# List Anggota Kelompok (Asumsi file foto ada di folder 'assets/')
+team_members = [
+    {"nama": "MHD. HASBI", "nim": "2311522032", "foto": "assets/hasbi.jpg"},
+    {"nama": "Laila Qadriyah", "nim": "2311522022", "foto": "assets/laila.jpg"},
+    {"nama": "Raihanah Alya Rahmadi", "nim": "2311522016", "foto": "assets/raihanah.jpg"},
+]
+
+# --- FUNGSI BASE64 UNTUK EMBED GAMBAR (MEMPERBAIKI GAMBAR TIDAK MUNCUL) ---
+@st.cache_data
+def get_image_base64(path):
+    """Membaca gambar dan mengkonversinya ke Base64 untuk di-embed dalam HTML."""
+    try:
+        with open(path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except FileNotFoundError:
+        st.error(f"⚠️ File foto tidak ditemukan: {path}. Pastikan folder 'assets/' berisi file yang benar.")
+        # Mengembalikan placeholder Base64 untuk gambar transparan/kosong
+        return "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+
+# --------------------------------------------------------------------------
 
 st.markdown(f"""
     <style>
+    /* ---------------------------------------------------- */
+    /* GLOBAL & RESPONSIVENESS STYLING (NEW)                */
+    /* ---------------------------------------------------- */
+    html, body, .main, .block-container {{
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+        max-width: 1200px;
+        margin: 0 auto;
+    }}
+    
+    /* Responsive Title Styling */
+    .title {{
+        text-align: center;
+        font-size: 48px; /* Default for desktop */
+        font-weight: 800;
+        background: linear-gradient(45deg, #155724, {GREEN_COLOR}); 
+        background-size: 400% 400%; 
+        -webkit-background-clip: text; 
+        -webkit-text-fill-color: transparent;
+        animation: gradient-animation 5s ease infinite; 
+        text-shadow: 3px 3px 8px rgba(0, 0, 0, 0.4); 
+        letter-spacing: 2px;
+        margin-top: 40px;
+    }}
+
+    @media (max-width: 768px) {{
+        .title {{
+            font-size: 32px; /* Smaller for mobile/tablet */
+            margin-top: 20px;
+        }}
+        .stButton > button {{
+             padding: 10px 10px;
+             font-size: 14px;
+        }}
+    }}
+    /* ---------------------------------------------------- */
+    /* CUSTOM COMPONENTS STYLING                            */
+    /* ---------------------------------------------------- */
+
     /* Button Styling */
     .stButton > button {{
         width: 100%;
@@ -47,20 +110,7 @@ st.markdown(f"""
         transform: translateY(-3px);
         box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
     }}
-    /* Title Styling (Home Page) */
-    .title {{
-        text-align: center;
-        font-size: 48px;
-        font-weight: 800;
-        background: linear-gradient(45deg, #155724, {GREEN_COLOR}); 
-        background-size: 400% 400%; 
-        -webkit-background-clip: text; 
-        -webkit-text-fill-color: transparent;
-        animation: gradient-animation 5s ease infinite; 
-        text-shadow: 3px 3px 8px rgba(0, 0, 0, 0.4); 
-        letter-spacing: 2px;
-        margin-top: 40px;
-    }}
+
     @keyframes gradient-animation {{
         0% {{ background-position: 0% 50%; }}
         50% {{ background-position: 100% 50%; }}
@@ -89,8 +139,53 @@ st.markdown(f"""
         box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
         transition: 0.3s;
         margin-bottom: 20px;
-        background-color: #f9f9f9;
+        background-color: {GRAY_LIGHT};
         border-left: 5px solid {GREEN_COLOR};
+    }}
+
+    /* ---------------------------------------------------- */
+    /* TEAM MEMBER STYLING (UPDATED)                        */
+    /* ---------------------------------------------------- */
+    .member-card {{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 15px;
+        margin: 0; 
+        border-radius: 10px;
+        transition: transform 0.3s;
+        min-width: 150px; 
+    }}
+    .member-card:hover {{
+        transform: translateY(-5px);
+        background-color: #e9ecef;
+    }}
+    .member-photo {{
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 4px solid {DARK_GREEN};
+        margin-bottom: 10px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    }}
+    .member-name {{
+        font-weight: 700;
+        color: {DARK_GREEN};
+        font-size: 16px;
+    }}
+    .member-nim {{
+        font-size: 14px;
+        color: #6c757d;
+    }}
+
+    /* Hapus .team-grid karena kita akan menggunakan st.columns */
+    .team-grid {{
+        display: flex;
+        justify-content: space-around;
+        gap: 20px;
+        margin-top: 20px;
     }}
     </style>
 """, unsafe_allow_html=True)
@@ -117,6 +212,9 @@ if 'C_param_used' not in st.session_state:
     st.session_state.C_param_used = 1.0
 if 'Gamma_param_used' not in st.session_state:
     st.session_state.Gamma_param_used = 0.1
+# State untuk memulai proses upload data baru
+if 'start_upload' not in st.session_state:
+     st.session_state.start_upload = False
 
 
 pages = ["Home", "Input Dataset", "Preprocessing Data", "Analisis Data", "Data Visualization", "Kesimpulan & Prediksi"]
@@ -125,6 +223,24 @@ progress_bar = st.progress(0)
 # --------------------------
 # 2. PAGE FUNCTIONS
 # --------------------------
+
+def display_team_member(name, nim, photo_path):
+    """
+    Menampilkan kartu anggota tim dengan foto melingkar.
+    Menggunakan HTML/CSS dan base64 untuk mengatasi masalah path di Streamlit.
+    """
+    
+    # Dapatkan Base64 dari gambar
+    img_base64 = get_image_base64(photo_path)
+    
+    st.markdown(f"""
+        <div class="member-card">
+            <img src="data:image/jpeg;base64,{img_base64}" class="member-photo" alt="{name}">
+            <div class="member-name">{name}</div>
+            <div class="member-nim">NIM: {nim}</div>
+        </div>
+    """, unsafe_allow_html=True)
+
 
 def home():
     progress_bar.progress(0)
@@ -146,15 +262,34 @@ def home():
         "Aplikasi ini menggunakan Algoritma **Support Vector Machine (SVM)** untuk memprediksi risiko **Dropout**, **Lulus**, atau **Masih Aktif Kuliah (Enrolled)**. Ikuti langkah-langkah di *sidebar* untuk mengolah data dan melatih model Anda."
     )
     
-    # NEW ADDITION: Why SVM?
-    st.subheader("🧠 Mengapa Menggunakan Support Vector Machine (SVM)?")
-    st.markdown("""
-    Kami memilih algoritma **Support Vector Machine (SVM)** dibandingkan metode lain (seperti Decision Tree atau Naive Bayes) karena beberapa keunggulan kunci yang relevan dalam masalah klasifikasi risiko akademik:
+    # --- BAGIAN ANGGOTA KELOMPOK (UPDATED LAYOUT) ---
+    st.markdown("---")
+    st.subheader("👥 Anggota Kelompok Proyek")
+
+    # Menggunakan st.columns untuk layout horizontal-ke-vertikal yang responsif
+    col_hasbi, col_laila, col_raihanah = st.columns(3)
     
-    1.  **Efektif di Ruang Dimensi Tinggi:** SVM sangat baik dalam memproses data dengan banyak fitur (variabel prediktor), seperti data mahasiswa yang sering kali memiliki banyak atribut demografi dan akademik.
-    2.  **Batas Keputusan yang Jelas (Hyperplane):** SVM bertujuan mencari *hyperplane* optimal yang memiliki margin pemisah terbesar antara kelas-kelas. Dengan menggunakan *kernel* (seperti RBF yang digunakan di sini), SVM dapat menciptakan batas keputusan yang non-linear dan sangat efektif, memisahkan kelas 'Dropout', 'Lulus', dan 'Enrolled' secara optimal.
-    3.  **Regularisasi Inherent:** Parameter **C** dalam SVM secara alami melakukan regularisasi. Ini membantu menyeimbangkan antara mencapai akurasi tinggi pada data pelatihan (meminimalkan kesalahan) dan menjaga batas keputusan tetap mulus (mencegah *overfitting*).
-    4.  **Kinerja Solid pada Data Kompleks:** SVM cenderung memberikan kinerja yang kuat pada masalah klasifikasi yang kompleks dan non-linear, seperti memprediksi hasil akhir dari variabel yang saling berkaitan.
+    with col_hasbi:
+        display_team_member(team_members[0]['nama'], team_members[0]['nim'], team_members[0]['foto'])
+
+    with col_laila:
+        display_team_member(team_members[1]['nama'], team_members[1]['nim'], team_members[1]['foto'])
+        
+    with col_raihanah:
+        display_team_member(team_members[2]['nama'], team_members[2]['nim'], team_members[2]['foto'])
+
+    # --- END BAGIAN ANGGOTA KELOMPOK ---
+
+    st.markdown("---")
+
+    # NEW ADDITION: Why SVM? (REVISED TEXT)
+    st.subheader("🧠 Mengapa Memilih Support Vector Machine (SVM)?")
+    st.markdown("""
+    Dalam tugas klasifikasi yang kompleks seperti memprediksi status akhir mahasiswa, pemilihan algoritma sangatlah krusial. Kami memilih **Support Vector Machine (SVM)** dibandingkan metode lain karena memiliki kapabilitas unik untuk menangani data multidimensi dan menemukan batas pemisah yang optimal:
+
+    1.  **Kemampuan Menangani Batas Keputusan Non-linear (Kernel Trick):** Data mahasiswa (nilai, finansial, demografi) seringkali tidak dapat dipisahkan secara garis lurus. SVM, terutama dengan *kernel* RBF, unggul dalam menemukan *hyperplane* pemisah yang non-linear, secara efektif memisahkan risiko 'Dropout', 'Lulus', dan 'Enrolled' bahkan di ruang fitur yang kompleks. 
+    2.  **Fokus pada Kasus Kritis (Support Vectors):** Alih-alih melibatkan semua data, SVM hanya bergantung pada 'Support Vectors' (titik-titik data yang paling dekat dengan batas keputusan). Hal ini membuat model **sangat efisien** dan **kuat terhadap *outlier*** (data ekstrem) yang tidak berada di dekat batas pemisah, memastikan prediksi yang stabil.
+    3.  **Regularisasi yang Terkontrol:** Parameter **C** menyediakan kontrol langsung atas keseimbangan antara meminimalkan kesalahan klasifikasi pada data latih (akurasi tinggi) dan menciptakan batas keputusan yang mulus (mencegah *overfitting*). Ini penting untuk memastikan model kami dapat *menggeneralisasi* dengan baik ke data mahasiswa baru yang belum pernah dilihat sebelumnya.
     """)
 
 
@@ -177,9 +312,11 @@ def input_dataset():
         st.dataframe(data)
         st.write(f"Dataset memiliki **{data.shape[0]}** baris dan **{data.shape[1]}** kolom. Lanjutkan ke langkah *Preprocessing*.")
         # Reset data_cleaned dan pipeline agar sinkron
-        st.session_state.data_cleaned = None
+        if 'data_cleaned' in st.session_state:
+             st.session_state.data_cleaned = None
         st.session_state.pipeline = None
         st.session_state.prediction_made = False
+        st.session_state.start_upload = False # Reset upload state
 
 
 def preprocessing_data():
@@ -246,6 +383,8 @@ def preprocessing_data():
                 st.write(f"Baris setelah pembersihan: {data_cleaned.shape[0]}")
                 st.dataframe(data_cleaned.head())
                 st.session_state.pipeline = None # Reset pipeline
+                st.session_state.prediction_made = False
+                st.session_state.start_upload = False # Reset upload state
         else:
             st.session_state.data_cleaned = data
             st.success("Data sudah bersih. Anda dapat melanjutkan ke Analisis Data.")
@@ -312,11 +451,11 @@ def analisis_data():
         with col_target:
             default_target = [col for col in column_names if col in ['Target', 'target']]
             if st.session_state.selected_target and st.session_state.selected_target in column_names:
-                 default_index = column_names.index(st.session_state.selected_target)
+                default_index = column_names.index(st.session_state.selected_target)
             elif default_target:
-                 default_index = column_names.index(default_target[0])
+                default_index = column_names.index(default_target[0])
             else:
-                 default_index = len(column_names) - 1
+                default_index = len(column_names) - 1
 
             target_variable = st.selectbox(
                 "Pilih Variabel Target (Y):", 
@@ -358,8 +497,10 @@ def analisis_data():
             X = data[prediction_variable]
             y = data[target_variable]
             
+            # Label Encoding untuk kolom objek (jika ada) di Prediktor
             X = pd.get_dummies(X, drop_first=True)
             
+            # Label Encoding untuk Target
             le = LabelEncoder()
             y = le.fit_transform(y)
             class_labels = le.classes_
@@ -393,12 +534,17 @@ def analisis_data():
             st.session_state.confusion_matrix = confusion_matrix(y_test, pipeline.predict(X_test))
             st.session_state.C_param_used = C_to_use # Simpan nilai yang digunakan
             st.session_state.Gamma_param_used = gamma_to_use # Simpan nilai yang digunakan
+            st.session_state.prediction_made = False
+            st.session_state.start_upload = False # Reset upload state
 
             st.success(f"Model SVM (C={C_to_use}, Gamma={gamma_to_use}) telah dilatih dan disimpan.")
             st.markdown(f"**Akurasi Model:** <span style='color:{DARK_GREEN}; font-size: 24px;'>**{st.session_state.accuracy * 100:.2f}%**</span>", unsafe_allow_html=True)
             
-        elif st.session_state.pipeline is not None:
-            st.success("Model sudah dilatih dan siap digunakan. Anda dapat mengatur ulang parameter jika ingin melatih kembali.")
+        elif st.session_state.pipeline is not None and st.session_state.C_param_used == C_to_use and st.session_state.Gamma_param_used == gamma_to_use:
+             st.success(f"Model sudah dilatih (C={C_to_use}, Gamma={gamma_to_use}) dan siap digunakan. Anda dapat mengatur ulang parameter jika ingin melatih kembali.")
+        elif st.session_state.pipeline is not None and (st.session_state.C_param_used != C_to_use or st.session_state.Gamma_param_used != gamma_to_use):
+             st.warning(f"Parameter telah diubah (C: {st.session_state.C_param_used} -> {C_to_use}, Gamma: {st.session_state.Gamma_param_used} -> {gamma_to_use}). Tekan 'Latih Model SVM' untuk mengimplementasikan perubahan.")
+        
     else:
         st.error("⚠️ Mohon pilih minimal 2 Variabel Prediktor dan 1 Variabel Target untuk melanjutkan.")
 
@@ -440,7 +586,7 @@ def visualisasi_data():
             title="Distribusi Akurasi Prediksi",
             color_discrete_map={'Benar': GREEN_COLOR, 'Salah': '#B80000'}
         )
-        st.plotly_chart(fig_pie)
+        st.plotly_chart(fig_pie, use_container_width=True) # Tambahkan use_container_width
     
     with col_bar:
         prediction_distribution = comparison_df['Prediksi'].value_counts().reset_index()
@@ -454,7 +600,7 @@ def visualisasi_data():
             color='Status',
             color_discrete_map={label: GREEN_COLOR if label != 'Dropout' else '#B80000' for label in class_labels}
         )
-        st.plotly_chart(fig_bar)
+        st.plotly_chart(fig_bar, use_container_width=True) # Tambahkan use_container_width
 
     correct_predictions = (y_test == y_pred).sum()
     total_predictions = len(y_test)
@@ -479,13 +625,17 @@ def kesimpulan_dan_prediksi():
         # Confusion Matrix
         cm = st.session_state.confusion_matrix
         class_labels = st.session_state.class_labels
-        plt.figure(figsize=(6, 5))
+        
+        # Inisialisasi figure (penting untuk Streamlit agar tidak menumpuk plot)
+        fig, ax = plt.subplots(figsize=(6, 5)) 
         sns.heatmap(cm, annot=True, fmt='d', cmap='Greens', 
-                    xticklabels=class_labels, yticklabels=class_labels)
-        plt.title('Confusion Matrix', fontsize=14)
-        plt.ylabel('Actual Label')
-        plt.xlabel('Predicted Label')
-        st.pyplot(plt)
+                    xticklabels=class_labels, yticklabels=class_labels, ax=ax)
+        ax.set_title('Confusion Matrix', fontsize=14)
+        ax.set_ylabel('Actual Label')
+        ax.set_xlabel('Predicted Label')
+        
+        st.pyplot(fig) # Tampilkan figure
+        plt.close(fig) # Tutup figure untuk membebaskan memori
 
     with col_rep:
         st.write("Classification Report (Precision, Recall, F1-Score):")
@@ -512,25 +662,32 @@ def kesimpulan_dan_prediksi():
     # NEW INSIGHT 1: Interpretation of Hyperparameters
     st.markdown(f"""
     - **Parameter C (Regularization): {C_used}**: Nilai C yang digunakan ini [**menentukan tingkat hukuman**] terhadap setiap kesalahan klasifikasi. Dengan nilai **{C_used}**, model mencoba menyeimbangkan antara membatasi kesalahan pada data latih dan mempertahankan batas keputusan yang cukup umum (*generalized*).
-    - **Parameter Gamma (Kernel Coeff.): {Gamma_used}**: Nilai Gamma ini [**mendefinisikan pengaruh**] satu sampel data. Dengan Gamma={Gamma_used}, model akan membuat keputusan berdasarkan pengaruh yang [**bersifat lokal**] (jika nilai besar) atau [**global**] (jika nilai kecil) terhadap batas keputusan.
+    - **Parameter Gamma (Kernel Coeff.): {Gamma_used}**: Nilai Gamma ini [**mendefinisikan pengaruh**] satu sampel data. Dengan Gamma={Gamma_used}, model akan membuat keputusan berdasarkan pengaruh yang [**bersifat global**] (karena nilai cukup kecil) terhadap batas keputusan, menciptakan batas pemisah yang relatif mulus.
     """)
     
     # NEW INSIGHT 2: Interpretation of Critical Metrics (Point 2)
-    st.markdown("#### Interpretasi Hasil Kritis (Relevansi Topik Dropout)")
     report = st.session_state.classification_report
     accuracy = st.session_state.accuracy
     
-    # Safety check for 'Dropout' class
-    if 'Dropout' in report:
-        dropout_recall = report['Dropout'].get('recall', 0)
-        dropout_precision = report['Dropout'].get('precision', 0)
+    if any("Dropout" in label for label in st.session_state.class_labels):
+        dropout_key = next((key for key in report.keys() if "Dropout" in key), None)
+        if dropout_key:
+            dropout_recall = report[dropout_key].get('recall', 0)
+            dropout_precision = report[dropout_key].get('precision', 0)
+        else:
+            dropout_recall = 0
+            dropout_precision = 0
     else:
         dropout_recall = 0
         dropout_precision = 0
         
+    recall_display = f"{dropout_recall * 100:.0f}%" if dropout_recall > 0 else "N/A"
+    precision_display = f"{dropout_precision * 100:.0f}%" if dropout_precision > 0 else "N/A"
+    
+    st.markdown("#### Interpretasi Hasil Kritis (Relevansi Topik Dropout)")
     st.markdown(f"""
-    - **Insight Utama (Recall Dropout {dropout_recall:.2f})**: Angka Recall untuk kelas **Dropout** sangat penting. Nilai **{dropout_recall * 100:.0f}%** menunjukkan bahwa model berhasil mengidentifikasi mahasiswa yang berisiko dropout dari total kasus dropout yang sebenarnya. **Tujuan utama sistem ini adalah meminimalkan *False Negative*** (mahasiswa berisiko tinggi terlewatkan), dan Recall adalah metrik kuncinya.
-    - **Keandalan Peringatan (Precision Dropout {dropout_precision:.2f})**: Presisi **{dropout_precision * 100:.0f}%** berarti dari semua mahasiswa yang diprediksi model sebagai 'Dropout', sebagian besar prediksi tersebut benar. Ini mengukur seberapa andal (tepat) peringatan risiko yang diberikan.
+    - **Insight Utama (Recall Dropout {recall_display})**: Angka Recall untuk kelas yang terkait dengan **Dropout** sangat penting. Nilai **{recall_display}** menunjukkan bahwa model berhasil mengidentifikasi mahasiswa yang berisiko dropout dari total kasus dropout yang sebenarnya. **Tujuan utama sistem ini adalah meminimalkan *False Negative*** (mahasiswa berisiko tinggi terlewatkan), dan Recall adalah metrik kuncinya.
+    - **Keandalan Peringatan (Precision Dropout {precision_display})**: Presisi **{precision_display}** berarti dari semua mahasiswa yang diprediksi model sebagai 'Dropout', sebagian besar prediksi tersebut benar. Ini mengukur seberapa andal (tepat) peringatan risiko yang diberikan.
     - **Kesimpulan Terkait Topik**: Akurasi keseluruhan model sebesar **{accuracy * 100:.2f}%** menunjukkan bahwa model SVM Anda **efektif** sebagai alat skrining awal untuk intervensi akademik. Fokus pada pengoptimalan **Recall Dropout** harus menjadi prioritas untuk implementasi di dunia nyata, memungkinkan institusi untuk membantu mahasiswa tepat waktu.
     """)
     
@@ -543,15 +700,19 @@ def kesimpulan_dan_prediksi():
     st.markdown("Tahap ini memungkinkan Anda menguji model yang telah dilatih dengan data mahasiswa baru untuk mendapatkan prediksi status akademik mereka.")
     
     # Tombol konfirmasi sebelum mengupload file
-    if st.button('Mulai Unggah File untuk Prediksi', key='start_upload_btn'):
+    if st.button('Mulai Unggah File untuk Prediksi', key='start_upload_btn') or st.session_state.get('prediction_made', False):
         st.session_state.start_upload = True
 
     if st.session_state.get('start_upload', False):
         try:
-            # Assume st.session_state.pipeline is available and valid after training
+            # Pengecekan kolom yang digunakan dalam model
+            if 'X_test' not in st.session_state:
+                 st.error("⚠️ Data latih awal (X_test) tidak ditemukan. Mohon latih ulang model.")
+                 return
+                 
             loaded_model = st.session_state.pipeline 
             
-            st.info("File CSV yang Anda unggah akan diprediksi status mahasiswanya.")
+            st.info("File CSV yang Anda unggah akan diprediksi status mahasiswanya. Pastikan file hanya berisi variabel prediktor yang telah dipilih.")
 
             uploaded_file_new = st.file_uploader("Upload file CSV data baru (Inferensi)", type=["csv"], key='new_upload')
 
@@ -563,19 +724,22 @@ def kesimpulan_dan_prediksi():
                 if set(prediction_variable).issubset(data_baru.columns):
                     
                     # Logika Prediksi
-                    X_baru = data_baru[prediction_variable]
+                    X_baru = data_baru[prediction_variable].copy() # Gunakan copy untuk menghindari SettingWithCopyWarning
                     X_baru = pd.get_dummies(X_baru, drop_first=True)
 
+                    # Menyelaraskan kolom dengan data latih (penting untuk OHE)
                     X_test_cols = st.session_state.X_test.columns.tolist()
-                    for col in X_test_cols:
-                        if col not in X_baru.columns:
-                            X_baru[col] = 0
-                    X_baru = X_baru[X_test_cols]
-
+                    X_baru_aligned = pd.DataFrame(0, index=X_baru.index, columns=X_test_cols)
+                    
+                    # Isi kolom yang ada di X_baru ke X_baru_aligned
+                    common_cols = list(set(X_baru.columns) & set(X_test_cols))
+                    X_baru_aligned[common_cols] = X_baru[common_cols]
+                    
+                    # Scaling dan Prediksi
                     scaler = loaded_model.named_steps['scaler']
                     classifier = loaded_model.named_steps['classifier']
                     
-                    X_baru_scaled = scaler.transform(X_baru)
+                    X_baru_scaled = scaler.transform(X_baru_aligned)
                     y_pred_baru = classifier.predict(X_baru_scaled)
                     
                     y_pred_baru_labels = le.inverse_transform(y_pred_baru)
@@ -589,12 +753,13 @@ def kesimpulan_dan_prediksi():
                     
                     st.markdown(f"**Total Data yang Diprediksi:** **{data_baru.shape[0]}**")
                     for label, count in pred_count.items():
-                         st.write(f"  - Prediksi **{label}**: **{count}** siswa")
+                          st.write(f"  - Prediksi **{label}**: **{count}** siswa")
 
                     st.subheader("Tabel Data Lengkap dengan Hasil Prediksi")
                     st.dataframe(data_baru)
                 else:
-                    st.error("⚠️ Kolom data baru tidak sesuai dengan variabel prediktor model. Pastikan semua kolom yang Anda pilih sebelumnya ada di file baru.")
+                    missing_cols = set(prediction_variable) - set(data_baru.columns)
+                    st.error(f"⚠️ Kolom data baru tidak sesuai. Variabel prediktor yang hilang: {', '.join(missing_cols)}. Pastikan semua kolom yang Anda pilih sebelumnya ada di file baru.")
             
         except FileNotFoundError:
              st.error("⚠️ File model ('model_dropout_svc.pkl') tidak dapat dimuat. Mohon latih model di halaman 'Analisis Data' terlebih dahulu.")
@@ -611,9 +776,18 @@ def check_page_completion(page_idx):
     # Index 1: Input Dataset - Data harus ada
     if page_idx == 1: 
         return st.session_state.data is not None
+    # Index 2: Preprocessing Data - Data bersih harus ada
+    if page_idx == 2:
+        # Cek data bersih, jika belum ada, pakai data awal dan beri peringatan
+        if 'data_cleaned' not in st.session_state:
+             return st.session_state.data is not None
+        return st.session_state.get('data_cleaned') is not None
     # Index 3: Analisis Data - Model harus sudah dilatih
     elif page_idx == 3: 
         # Cek apakah sudah ada model yang tersimpan di state
+        return st.session_state.pipeline is not None
+    # Index 4: Data Visualization - Model harus sudah dilatih
+    elif page_idx == 4: 
         return st.session_state.pipeline is not None
     # Index 5: Kesimpulan & Prediksi - Cukup memastikan model sudah ada
     elif page_idx == 5: 
@@ -624,7 +798,7 @@ def check_page_completion(page_idx):
 def main():
     
     def next_page():
-        if st.session_state.current_page_idx < len(pages) - 1:
+        if check_page_completion(st.session_state.current_page_idx) and st.session_state.current_page_idx < len(pages) - 1:
             st.session_state.current_page_idx += 1
             st.session_state.navigation = pages[st.session_state.current_page_idx]
             
@@ -679,7 +853,15 @@ def main():
                 st.button('Next ➡️', on_click=next_page, key='next_btn')
             else:
                 st.button('Next ➡️', disabled=True, key='next_btn_disabled')
-                st.warning("Penuhi persyaratan halaman ini untuk lanjut.")
+                
+    
+    if st.session_state.current_page_idx < len(pages) - 1 and not can_proceed:
+        st.warning("⚠️ Penuhi persyaratan halaman ini untuk melanjutkan. (Misal: Unggah Data, Bersihkan Data, atau Latih Model)")
+
 
 if __name__ == "__main__":
+    # Peringatan untuk pengguna agar memastikan file gambar ada
+    if not Path("assets/hasbi.jpg").is_file() or not Path("assets/laila.jpg").is_file() or not Path("assets/raihanah.jpg").is_file():
+        st.error("Pastikan file 'hasbi.jpg', 'laila.jpg', dan 'raihanah.jpg' berada di dalam folder 'assets/' untuk menampilkan foto anggota kelompok.")
+        
     main()
