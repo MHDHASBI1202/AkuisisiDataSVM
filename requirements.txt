@@ -1,0 +1,12 @@
+streamlit
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+plotly
+joblib
+
+use in terminal:
+pip install streamlit pandas numpy scikit-learn matplotlib seaborn plotly joblib
+streamlit run appsvm.py 
