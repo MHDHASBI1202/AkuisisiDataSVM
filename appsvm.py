@@ -145,6 +145,17 @@ def home():
     st.info(
         "Aplikasi ini menggunakan Algoritma **Support Vector Machine (SVM)** untuk memprediksi risiko **Dropout**, **Lulus**, atau **Masih Aktif Kuliah (Enrolled)**. Ikuti langkah-langkah di *sidebar* untuk mengolah data dan melatih model Anda."
     )
+    
+    # NEW ADDITION: Why SVM?
+    st.subheader("🧠 Mengapa Menggunakan Support Vector Machine (SVM)?")
+    st.markdown("""
+    Kami memilih algoritma **Support Vector Machine (SVM)** dibandingkan metode lain (seperti Decision Tree atau Naive Bayes) karena beberapa keunggulan kunci yang relevan dalam masalah klasifikasi risiko akademik:
+    
+    1.  **Efektif di Ruang Dimensi Tinggi:** SVM sangat baik dalam memproses data dengan banyak fitur (variabel prediktor), seperti data mahasiswa yang sering kali memiliki banyak atribut demografi dan akademik.
+    2.  **Batas Keputusan yang Jelas (Hyperplane):** SVM bertujuan mencari *hyperplane* optimal yang memiliki margin pemisah terbesar antara kelas-kelas. Dengan menggunakan *kernel* (seperti RBF yang digunakan di sini), SVM dapat menciptakan batas keputusan yang non-linear dan sangat efektif, memisahkan kelas 'Dropout', 'Lulus', dan 'Enrolled' secara optimal.
+    3.  **Regularisasi Inherent:** Parameter **C** dalam SVM secara alami melakukan regularisasi. Ini membantu menyeimbangkan antara mencapai akurasi tinggi pada data pelatihan (meminimalkan kesalahan) dan menjaga batas keputusan tetap mulus (mencegah *overfitting*).
+    4.  **Kinerja Solid pada Data Kompleks:** SVM cenderung memberikan kinerja yang kuat pada masalah klasifikasi yang kompleks dan non-linear, seperti memprediksi hasil akhir dari variabel yang saling berkaitan.
+    """)
 
 
 def input_dataset():
@@ -250,9 +261,38 @@ def analisis_data():
 
     st.markdown('<h1>🔬 Analisis Data (Klasifikasi SVM)</h1>', unsafe_allow_html=True)
     
-    # Keterangan Tambahan
-    st.markdown("#### Tujuan Halaman")
-    st.info("Pada tahap ini, Anda memilih variabel yang relevan dan mengatur parameter model SVC sebelum melatihnya untuk menghasilkan prediksi.")
+    # NEW ADDITION: Guidance on Variable Selection 
+    with st.expander("❓ Bagaimana Menentukan Variabel Prediktor Terbaik?", expanded=True):
+        st.subheader("Strategi Pemilihan Fitur (Feature Selection)")
+        st.markdown("""
+        Penentuan variabel prediktor (fitur) sangat krusial karena memengaruhi kinerja model. Dalam konteks prediksi risiko akademik (dropout), pemilihan variabel harus didasarkan pada:
+        
+        1.  **Domain Knowledge (Pengetahuan Domain):** Pilih variabel yang secara logis berkorelasi dengan kinerja atau motivasi mahasiswa (misalnya, nilai, status finansial, dan keterlibatan akademik).
+        2.  **Hasil Akademik Awal:** Kinerja mahasiswa di semester-semester awal sering kali menjadi prediktor yang paling kuat untuk status akhir.
+        """)
+        
+        best_predictors_suggestion = [
+            "Curricular units 1st sem (approved)",
+            "Curricular units 2nd sem (approved)",
+            "Curricular units 2nd sem (grade)",
+            "Admission grade",
+            "Tuition fees up to date",
+            "Debtor",
+            "Scholarship holder",
+            "Age at enrollment"
+        ]
+        
+        st.markdown(f"""
+        **Saran Variabel Prediktor Terbaik:**
+        Berdasarkan studi kasus umum dan variabel dalam dataset Anda, variabel yang paling berpengaruh terhadap risiko akademik meliputi:
+        
+        - **Kinerja Akademik:** `{best_predictors_suggestion[0]}` (Jumlah mata kuliah yang disetujui di semester 1), `{best_predictors_suggestion[1]}` (Semester 2), dan `{best_predictors_suggestion[2]}` (Nilai rata-rata Semester 2).
+        - **Finansial/Administrasi:** `{best_predictors_suggestion[4]}`, `{best_predictors_suggestion[5]}`, dan `{best_predictors_suggestion[6]}`.
+        - **Latar Belakang:** `{best_predictors_suggestion[3]}` dan `{best_predictors_suggestion[7]}`.
+        
+        **Rekomendasi:** Untuk hasil optimal, cobalah untuk memilih minimal 5 dari variabel yang disebutkan di atas.
+        """)
+    # END NEW ADDITION
 
     with st.expander("📝 Konfigurasi Model", expanded=True):
         col_select, col_target = st.columns(2)
@@ -356,7 +396,7 @@ def analisis_data():
 
             st.success(f"Model SVM (C={C_to_use}, Gamma={gamma_to_use}) telah dilatih dan disimpan.")
             st.markdown(f"**Akurasi Model:** <span style='color:{DARK_GREEN}; font-size: 24px;'>**{st.session_state.accuracy * 100:.2f}%**</span>", unsafe_allow_html=True)
-        
+            
         elif st.session_state.pipeline is not None:
             st.success("Model sudah dilatih dan siap digunakan. Anda dapat mengatur ulang parameter jika ingin melatih kembali.")
     else:
@@ -454,44 +494,53 @@ def kesimpulan_dan_prediksi():
     
     st.markdown("---")
 
-    # --- BAGIAN 2: ANALISIS MENDALAM ---
-    st.subheader("2. Analisis Mendalam Konfigurasi Model")
+    # --- BAGIAN 2: ANALISIS MENDALAM (NEW INSIGHTS) ---
+    st.subheader("2. Analisis Mendalam Konfigurasi & Hasil Model")
     
     st.markdown("#### Variabel Prediktor yang Digunakan:")
     if st.session_state.prediction_variable:
         st.code(", ".join(st.session_state.prediction_variable))
     
     st.markdown(f"""
-    Model SVC ini dilatih untuk memprediksi **{st.session_state.target_variable}** menggunakan **{len(st.session_state.prediction_variable)}** variabel prediktor yang Anda pilih. Karena model SVC tidak memberikan *feature importance* langsung, dampak variabel dilihat dari relevansi domain dan kinerja model setelah pemilihan variabel.
+    Model SVC ini dilatih untuk memprediksi **{st.session_state.target_variable}** menggunakan **{len(st.session_state.prediction_variable)}** variabel prediktor yang Anda pilih. Pemilihan variabel ini secara langsung memengaruhi batas keputusan yang dibuat oleh model.
     """)
     
     st.markdown("#### Dampak Parameter SVC pada Pelatihan:")
     C_used = st.session_state.C_param_used
     Gamma_used = st.session_state.Gamma_param_used
     
+    # NEW INSIGHT 1: Interpretation of Hyperparameters
     st.markdown(f"""
-    Model SVC dilatih dengan:
-    - **Parameter C (Regularization): {C_used}**: Nilai C yang digunakan ini [**menentukan tingkat hukuman**] terhadap setiap kesalahan klasifikasi. Jika {C_used} adalah nilai besar (misal > 5), model lebih cenderung mencari batas keputusan yang kompleks (potensi *overfitting*).
+    - **Parameter C (Regularization): {C_used}**: Nilai C yang digunakan ini [**menentukan tingkat hukuman**] terhadap setiap kesalahan klasifikasi. Dengan nilai **{C_used}**, model mencoba menyeimbangkan antara membatasi kesalahan pada data latih dan mempertahankan batas keputusan yang cukup umum (*generalized*).
     - **Parameter Gamma (Kernel Coeff.): {Gamma_used}**: Nilai Gamma ini [**mendefinisikan pengaruh**] satu sampel data. Dengan Gamma={Gamma_used}, model akan membuat keputusan berdasarkan pengaruh yang [**bersifat lokal**] (jika nilai besar) atau [**global**] (jika nilai kecil) terhadap batas keputusan.
     """)
+    
+    # NEW INSIGHT 2: Interpretation of Critical Metrics (Point 2)
+    st.markdown("#### Interpretasi Hasil Kritis (Relevansi Topik Dropout)")
+    report = st.session_state.classification_report
+    accuracy = st.session_state.accuracy
+    
+    # Safety check for 'Dropout' class
+    if 'Dropout' in report:
+        dropout_recall = report['Dropout'].get('recall', 0)
+        dropout_precision = report['Dropout'].get('precision', 0)
+    else:
+        dropout_recall = 0
+        dropout_precision = 0
+        
+    st.markdown(f"""
+    - **Insight Utama (Recall Dropout {dropout_recall:.2f})**: Angka Recall untuk kelas **Dropout** sangat penting. Nilai **{dropout_recall * 100:.0f}%** menunjukkan bahwa model berhasil mengidentifikasi mahasiswa yang berisiko dropout dari total kasus dropout yang sebenarnya. **Tujuan utama sistem ini adalah meminimalkan *False Negative*** (mahasiswa berisiko tinggi terlewatkan), dan Recall adalah metrik kuncinya.
+    - **Keandalan Peringatan (Precision Dropout {dropout_precision:.2f})**: Presisi **{dropout_precision * 100:.0f}%** berarti dari semua mahasiswa yang diprediksi model sebagai 'Dropout', sebagian besar prediksi tersebut benar. Ini mengukur seberapa andal (tepat) peringatan risiko yang diberikan.
+    - **Kesimpulan Terkait Topik**: Akurasi keseluruhan model sebesar **{accuracy * 100:.2f}%** menunjukkan bahwa model SVM Anda **efektif** sebagai alat skrining awal untuk intervensi akademik. Fokus pada pengoptimalan **Recall Dropout** harus menjadi prioritas untuk implementasi di dunia nyata, memungkinkan institusi untuk membantu mahasiswa tepat waktu.
+    """)
+    
     st.markdown("---")
 
 
-    # --- BAGIAN 3: INTERPRETASI HASIL & PREDIKSI DATA BARU ---
-    st.subheader("3. Interpretasi Hasil dan Prediksi Data Baru")
+    # --- BAGIAN 3: PREDIKSI DATA BARU ---
+    st.subheader("3. Prediksi Data Baru")
     
-    report = st.session_state.classification_report
-    
-    # Fokus pada 'Dropout' class
-    dropout_recall = report.get('Dropout', {}).get('recall', 0) if 'Dropout' in report else 0
-    dropout_precision = report.get('Dropout', {}).get('precision', 0) if 'Dropout' in report else 0
-
-    st.markdown(f"""
-    - **Interpretasi Kritis (Recall Dropout {dropout_recall:.2f})**: Angka ini menunjukkan bahwa model berhasil mengidentifikasi **{dropout_recall * 100:.0f}%** dari semua kasus **Dropout** yang sebenarnya dalam data uji. **Metrik ini krusial** karena meminimalkan *False Negative* (mahasiswa berisiko tinggi tapi dianggap aman).
-    - **Metrik Lain**: Presisi untuk 'Dropout' sebesar {dropout_precision:.2f} menunjukkan keandalan model saat memprediksi 'Dropout'. Akurasi keseluruhan model adalah {st.session_state.accuracy * 100:.2f}%.
-    """)
-
-    st.markdown("#### Prediksi Menggunakan Dataset Baru")
+    st.markdown("Tahap ini memungkinkan Anda menguji model yang telah dilatih dengan data mahasiswa baru untuk mendapatkan prediksi status akademik mereka.")
     
     # Tombol konfirmasi sebelum mengupload file
     if st.button('Mulai Unggah File untuk Prediksi', key='start_upload_btn'):
@@ -499,7 +548,9 @@ def kesimpulan_dan_prediksi():
 
     if st.session_state.get('start_upload', False):
         try:
-            loaded_model = joblib.load('model_dropout_svc.pkl')
+            # Assume st.session_state.pipeline is available and valid after training
+            loaded_model = st.session_state.pipeline 
+            
             st.info("File CSV yang Anda unggah akan diprediksi status mahasiswanya.")
 
             uploaded_file_new = st.file_uploader("Upload file CSV data baru (Inferensi)", type=["csv"], key='new_upload')
@@ -522,9 +573,11 @@ def kesimpulan_dan_prediksi():
                     X_baru = X_baru[X_test_cols]
 
                     scaler = loaded_model.named_steps['scaler']
+                    classifier = loaded_model.named_steps['classifier']
+                    
                     X_baru_scaled = scaler.transform(X_baru)
-
-                    y_pred_baru = loaded_model.predict(X_baru_scaled)
+                    y_pred_baru = classifier.predict(X_baru_scaled)
+                    
                     y_pred_baru_labels = le.inverse_transform(y_pred_baru)
                     data_baru['Prediksi_Status'] = y_pred_baru_labels
 
@@ -541,12 +594,12 @@ def kesimpulan_dan_prediksi():
                     st.subheader("Tabel Data Lengkap dengan Hasil Prediksi")
                     st.dataframe(data_baru)
                 else:
-                    st.error("⚠️ Kolom data baru tidak sesuai dengan variabel prediktor model.")
+                    st.error("⚠️ Kolom data baru tidak sesuai dengan variabel prediktor model. Pastikan semua kolom yang Anda pilih sebelumnya ada di file baru.")
             
         except FileNotFoundError:
-            st.error("⚠️ File model ('model_dropout_svc.pkl') tidak ditemukan. Mohon latih model terlebih dahulu.")
+             st.error("⚠️ File model ('model_dropout_svc.pkl') tidak dapat dimuat. Mohon latih model di halaman 'Analisis Data' terlebih dahulu.")
         except Exception as e:
-            st.error(f"⚠️ Terjadi kesalahan saat memproses data: {e}")
+            st.error(f"⚠️ Terjadi kesalahan saat memproses data: {e}. Pastikan data baru memiliki format yang sesuai.")
 
 
 # --------------------------
@@ -574,7 +627,7 @@ def main():
         if st.session_state.current_page_idx < len(pages) - 1:
             st.session_state.current_page_idx += 1
             st.session_state.navigation = pages[st.session_state.current_page_idx]
-        
+            
     def prev_page():
         if st.session_state.current_page_idx > 0:
             st.session_state.current_page_idx -= 1
